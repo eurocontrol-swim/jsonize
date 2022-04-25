@@ -128,14 +128,13 @@ class XMLNodeToJSONNode(NodeMap):
                 expanded_ns = xml_namespaces[None]
                 attribute_name = '{' + expanded_ns + '}' + attribute_name
 
+        xpath = self.from_xml_node.path
+
         if xml_namespaces:
             if xml_namespaces.get(None):
                 xml_namespaces['_'] = xml_namespaces.pop(None)
-
-        if '_' in xml_namespaces.keys():
-            xpath = self.from_xml_node.path.replace_default_namespace('_', in_place=False)
-        else:
-            xpath = self.from_xml_node.path
+            if '_' in xml_namespaces.keys():
+                xpath = xpath.replace_default_namespace('_', in_place=False)
 
         try:
             parent_element = xml_etree.xpath(str(xpath.parent()), namespaces=xml_namespaces)[0]
@@ -147,12 +146,13 @@ class XMLNodeToJSONNode(NodeMap):
     def _get_element_value(self, xml_etree: ElementTree,
                            xml_namespaces: Dict = None,
                            strip_whitespace: bool = True) -> Optional[str]:
+        xpath = self.from_xml_node.path
+
         if xml_namespaces:
             if xml_namespaces.get(None):
                 xml_namespaces['_'] = xml_namespaces.pop(None)
-            xpath = self.from_xml_node.path.replace_default_namespace('_', in_place=False)
-        else:
-            xpath = self.from_xml_node.path
+            if '_' in xml_namespaces.keys():
+                xpath = xpath.replace_default_namespace('_', in_place=False)
 
         try:
             xml_element = xml_etree.xpath(str(xpath), namespaces=xml_namespaces)[0]
