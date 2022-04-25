@@ -7,7 +7,8 @@ from lxml import etree
 
 
 class TestNamespaceSubstitution(unittest.TestCase):
-    namespaces = {'gml': 'http://www.opengis.net/gml/3.2',
+    namespaces = {None: 'http://defaultNamespace.com/default/ns/3.0',
+                  'gml': 'http://www.opengis.net/gml/3.2',
                   'adrmsg': 'http://www.eurocontrol.int/cfmu/b2b/ADRMessage',
                   'aixm': 'http://www.aixm.aero/schema/5.1',
                   'xlink': 'http://www.w3.org/1999/xlink'}
@@ -22,8 +23,9 @@ class TestNamespaceSubstitution(unittest.TestCase):
             get_short_namespace('http://notfound.com', self.namespaces)
 
     def test_namespace_substitution(self):
-        xpath = XPath('/adrmsg:ADRMessage/adrmsg:hasMember[1]/aixm:Route/@{http://www.opengis.net/gml/3.2}id')
-        short_xpath = XPath('/adrmsg:ADRMessage/adrmsg:hasMember[1]/aixm:Route/@gml:id')
+        xpath = XPath(
+            '/{http://www.eurocontrol.int/cfmu/b2b/ADRMessage}ADRMessage/{http://www.eurocontrol.int/cfmu/b2b/ADRMessage}hasMember[1]/{http://defaultNamespace.com/default/ns/3.0}Route/@{http://www.opengis.net/gml/3.2}id')
+        short_xpath = XPath('/adrmsg:ADRMessage/adrmsg:hasMember[1]/Route/@gml:id')
         with self.subTest():
             self.assertEqual(short_xpath, xpath.shorten_namespaces(self.namespaces, in_place=False))
         with self.subTest():
@@ -112,6 +114,7 @@ class TestInferJsonPath(unittest.TestCase):
             xpath = XPath("/adrmsg:ADRMessage/adrmsg:hasMember[-1]/aixm:Route/@gml:id")
             reference = JSONPath("$.ADRMessage.hasMember[-1].Route.id")
             self.assertRaises(ValueError)
+
 
 class TestXPathRelations(unittest.TestCase):
 
@@ -399,7 +402,6 @@ sample_no_namespace = """<?xml version="1.0"?>
 </catalog>
 """
 
-
 sample_namespaced = """<?xml version="1.0"?>
 <message:AIXMBasicMessage xmlns:message="http://www.aixm.aero/schema/5.1.1/message"
 	xmlns:gts="http://www.isotc211.org/2005/gts" xmlns:gco="http://www.isotc211.org/2005/gco"
@@ -417,6 +419,40 @@ sample_namespaced = """<?xml version="1.0"?>
 	</gml:boundedBy>
 </message:AIXMBasicMessage>
 """
+
+sample_with_default_namespace = """<?xml version="1.0"?>
+<IATA_AIDX_FlightLegNotifRQ xmlns="http://www.iata.org/IATA/2007/00" xmlns:ba="http://baplc.com/extensionSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" AltLangID="en-us" PrimaryLangID="en-us" Target="Test" Version="15.1" TimeStamp="2015-06-03T14:47:03.612Z" TransactionIdentifier="FLT:NFAM" SequenceNmbr="2084">
+	<Originator CompanyShortName="BA"/>
+	<DeliveringSystem CompanyShortName="BA"/>
+	<FlightLeg>
+		<LegIdentifier>
+			<Airline CodeContext="3">BA</Airline>
+			<FlightNumber>8277</FlightNumber>
+			<DepartureAirport CodeContext="3">AAL</DepartureAirport>
+			<ArrivalAirport CodeContext="3">OSL</ArrivalAirport>
+			<OriginDate>2015-06-03</OriginDate>
+			<RepeatNumber>1</RepeatNumber>
+		</LegIdentifier>
+		<LegData>
+			<OperationalStatus RepeatIndex="1" CodeContext="9750">OFB</OperationalStatus>
+			<OperationalStatus RepeatIndex="2" CodeContext="9750">OFB</OperationalStatus>
+			<ServiceType>J</ServiceType>
+			<OwnerAirline>
+				<Airline>BA</Airline>
+			</OwnerAirline>
+			<AircraftInfo>
+				<AircraftType>FRJ</AircraftType>
+				<Registration>OYNCP</Registration>
+			</AircraftInfo>
+		</LegData>
+		<TPA_Extension>
+			<ba:FlightCrewAirline CodeContext="3">BA</ba:FlightCrewAirline>
+			<ba:CabinCrewAirline CodeContext="3">BA</ba:CabinCrewAirline>
+		</TPA_Extension>
+	</FlightLeg>
+</IATA_AIDX_FlightLegNotifRQ>
+"""
+
 
 class TestFindNamespaces(unittest.TestCase):
 
@@ -437,10 +473,18 @@ class TestFindNamespaces(unittest.TestCase):
         xml_namespaces = {}
         self.assertEqual(find_namespaces(xml_tree), xml_namespaces)
 
+    def test_default_namespace(self):
+        root = etree.fromstring(sample_with_default_namespace)
+        xml_tree = etree.ElementTree(root)
+        xml_namespaces = {None: 'http://www.iata.org/IATA/2007/00',
+                          'ba': 'http://baplc.com/extensionSchema',
+                          'xsi': 'http://www.w3.org/2001/XMLSchema-instance'}
+        self.assertEqual(find_namespaces(xml_tree), xml_namespaces)
+
 
 class TestXPathGeneration(unittest.TestCase):
 
-    def test_node_xpaths(self):
+    def test_node_xpaths_no_namespace(self):
         root = etree.fromstring(sample_no_namespace)
         xml_tree = etree.ElementTree(root)
         xpath_set = {XPath('/catalog/book[1]'),
@@ -454,7 +498,40 @@ class TestXPathGeneration(unittest.TestCase):
         with self.subTest():
             self.assertSetEqual(xpath_set, set(generate_node_xpaths(xml_tree)))
 
-
+    def test_node_xpaths_with_namespaces(self):
+        xml_namespaces = {None: 'http://www.iata.org/IATA/2007/00',
+                          'ba': 'http://baplc.com/extensionSchema',
+                          'xsi': 'http://www.w3.org/2001/XMLSchema-instance'}
+        root = etree.fromstring(sample_with_default_namespace)
+        xml_tree = etree.ElementTree(root)
+        raw_xpaths = {'/IATA_AIDX_FlightLegNotifRQ/Originator', '/IATA_AIDX_FlightLegNotifRQ/Originator/@CompanyShortName',
+                    '/IATA_AIDX_FlightLegNotifRQ/DeliveringSystem', '/IATA_AIDX_FlightLegNotifRQ/DeliveringSystem/@CompanyShortName',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/Airline', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/Airline/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/FlightNumber', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/DepartureAirport',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/DepartureAirport/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/ArrivalAirport',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/ArrivalAirport/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/OriginDate', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegIdentifier/RepeatNumber',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[1]',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[1]/@RepeatIndex',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[1]/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[2]',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[2]/@RepeatIndex',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OperationalStatus[2]/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/ServiceType', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OwnerAirline',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/OwnerAirline/Airline', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/AircraftInfo',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/AircraftInfo/AircraftType',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/LegData/AircraftInfo/Registration', '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/TPA_Extension',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/TPA_Extension/ba:FlightCrewAirline',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/TPA_Extension/ba:FlightCrewAirline/@CodeContext',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/TPA_Extension/ba:CabinCrewAirline',
+                    '/IATA_AIDX_FlightLegNotifRQ/FlightLeg/TPA_Extension/ba:CabinCrewAirline/@CodeContext'}
+        expected = set(map(lambda x: XPath(x), raw_xpaths))
+        with self.subTest():
+            self.assertCountEqual(expected, generate_node_xpaths(xml_tree, xml_namespaces=xml_namespaces))
+        with self.subTest():
+            self.assertSetEqual(expected, set(generate_node_xpaths(xml_tree, xml_namespaces=xml_namespaces)))
 
 if __name__ == '__main__':
     unittest.main()
