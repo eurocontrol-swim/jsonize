@@ -590,16 +590,24 @@ def generate_node_xpaths(root: ElementTree,
     :param xml_namespaces: A dictionary containing the mapping of the namespaces.
     :return: A generator that yields all the possible XPaths.
     """
-    all_elements = root.iterfind('//*')  # type: Iterable[ElementTree]
+    all_elements = root.iterfind('//*', namespaces=xml_namespaces)  # type: Iterable[ElementTree]
+    root_tag = root.getroot().tag
 
     for element in all_elements:
-        element_path = root.getpath(element)
-        attribs = (f'{element_path}/@{attrib_name}' for attrib_name, _ in element.attrib.items())
+        element_path = f'/{root_tag}/{element.getroottree().getelementpath(element)}'
+        attrib_paths = (f'{element_path}/@{attrib_name}' for attrib_name, _ in element.attrib.items())
 
-        yield XPath(element_path).shorten_namespaces(xml_namespaces, in_place=False)
+        if xml_namespaces:
+            yield XPath(element_path).shorten_namespaces(xml_namespaces, in_place=False)
 
-        for attrib in attribs:
-            yield XPath(attrib).shorten_namespaces(xml_namespaces, in_place=False)
+            for attrib in attrib_paths:
+                yield XPath(attrib).shorten_namespaces(xml_namespaces, in_place=False)
+        else:
+            yield XPath(element_path)
+
+            for attrib in attrib_paths:
+                yield XPath(attrib)
+
 
 
 def generate_nodes(tree: ElementTree, xml_namespaces: Dict[str, str] = None, clean_sequence_index: bool = False) -> Iterable[XMLNode]:
@@ -703,8 +711,4 @@ def find_namespaces(tree: ElementTree) -> Dict[str, str]:
     """
     root = tree.getroot()
     namespaces = root.nsmap
-    try:
-        namespaces.pop(None)
-    except KeyError:
-        pass
     return namespaces
