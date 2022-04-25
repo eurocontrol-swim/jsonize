@@ -467,6 +467,27 @@ class XPath():
 
         return self
 
+    def replace_default_namespace(self, replace_ns: str, in_place: bool = True) -> Union[None, XPath]:
+        xpath_structure = self._xpath_structure
+
+        def namespace_substitution(name: str, replace_ns: str) -> str:
+            assert '{' not in name
+            if name in ['', '.']:
+                return name
+            elif ':' in name:
+                return name
+            elif name[0] == '@':
+                return f'@{replace_ns}:{name[1:]}'
+            else:
+                return f'{replace_ns}:{name}'
+
+        expanded_xpath_structure = [namespace_substitution(x, replace_ns) for x in xpath_structure]
+
+        if not in_place:
+            return XPath('/'.join(expanded_xpath_structure))
+        else:
+            self.raw_xpath = '/'.join(expanded_xpath_structure)
+
     def remove_indices(self, in_place: bool = True) -> Union[None, XPath]:
         """
         Removes the XPath indices that are present in elements part of an XML sequence. i.e.
