@@ -449,8 +449,15 @@ class XPath():
                            xml_namespaces: Dict[str, str],
                            in_place: bool = True) -> Union[None, XPath]:
 
+        def namespace_substitution(full_ns: str, xml_namespaces: Dict) -> str:
+            short_ns = get_short_namespace(full_ns=full_ns, xml_namespaces=xml_namespaces)
+            if short_ns is None:
+                return ''
+            else:
+                return short_ns + ':'
+
         xpath = re.sub(r'\{([^\}]+)\}',
-                       lambda x: get_short_namespace(x.group(1), xml_namespaces) + ':',
+                       lambda x: namespace_substitution(x.group(1), xml_namespaces),
                        self.raw_xpath)
 
         if not in_place:
