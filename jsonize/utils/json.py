@@ -254,9 +254,9 @@ def get_item_from_json_path(path: JSONPath, json: Union[Dict, List]) -> Any:
             if key not in ['$', '@']:
                 current_item = current_item[key]
         except KeyError:
-            raise KeyError('The following path does not exist', path.split(at=key_pos + 1)[0])
+            raise KeyError(f'The following path does not exist {path.split(at=key_pos + 1)[0]}', path.split(at=key_pos + 1)[0])
         except TypeError:
-            raise TypeError('The following item is not a dictionary: ', path.split(at=key_pos + 1)[0])
+            raise TypeError(f'The following item is not a dictionary: {path.split(at=key_pos + 1)[0]}', path.split(at=key_pos + 1)[0])
         except IndexError:
             raise IndexError(
                 f'The item in the following path "{path.split(at=key_pos + 1)[0]}" cannot be accessed',
