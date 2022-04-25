@@ -41,7 +41,7 @@ from abc import ABCMeta, abstractmethod
 import re
 
 from lxml.etree import parse as xml_parse
-from lxml.etree import ElementTree
+from lxml.etree import ElementTree, ETXPath
 
 from jsonize.utils.xml import XMLNode, XMLNodeType, build_node_tree, generate_nodes, XPath
 from jsonize.utils.json import (JSONNode,
@@ -123,24 +123,43 @@ class XMLNodeToJSONNode(NodeMap):
             short_ns = attribute_name[:ns_separator_loc]
             expanded_ns = xml_namespaces[short_ns]
             attribute_name = '{' + expanded_ns + '}' + attribute_name[ns_separator_loc + 1:]
+        else:
+            if xml_namespaces and xml_namespaces.get(None):
+                expanded_ns = xml_namespaces[None]
+                attribute_name = '{' + expanded_ns + '}' + attribute_name
 
-        parent_element = xml_etree.find(str(parent_element_path), xml_namespaces)
+        if xml_namespaces:
+            if xml_namespaces.get(None):
+                xml_namespaces['_'] = xml_namespaces.pop(None)
+
+        if '_' in xml_namespaces.keys():
+            xpath = self.from_xml_node.path.replace_default_namespace('_', in_place=False)
+        else:
+            xpath = self.from_xml_node.path
 
         try:
+            parent_element = xml_etree.xpath(str(xpath.parent()), namespaces=xml_namespaces)[0]
             input_value = parent_element.attrib[attribute_name]
-        except (KeyError, AttributeError):
+        except (KeyError, AttributeError, IndexError):
             input_value = None
         return input_value
 
     def _get_element_value(self, xml_etree: ElementTree,
                            xml_namespaces: Dict = None,
                            strip_whitespace: bool = True) -> Optional[str]:
-        xml_element = xml_etree.find(str(self.from_xml_node.path), xml_namespaces)
+        if xml_namespaces:
+            if xml_namespaces.get(None):
+                xml_namespaces['_'] = xml_namespaces.pop(None)
+            xpath = self.from_xml_node.path.replace_default_namespace('_', in_place=False)
+        else:
+            xpath = self.from_xml_node.path
+
         try:
+            xml_element = xml_etree.xpath(str(xpath), namespaces=xml_namespaces)[0]
             input_value = xml_element.text
             if strip_whitespace:
                 input_value = input_value.strip()
-        except AttributeError:
+        except (AttributeError, IndexError):
             input_value = None
         return input_value
 
